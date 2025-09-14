@@ -39,7 +39,7 @@ export const PrimaryInput: React.FC<PrimaryInputProps> = ({ onSubmitSubreddit, o
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           placeholder="subreddit or search query..."
-          className="w-full bg-transparent p-4 pl-0 text-white placeholder-gray-500 focus:outline-none"
+          className="w-full bg-transparent p-3 pl-0 text-white placeholder-gray-500 focus:outline-none"
           disabled={isLoading}
         />
       </div>
@@ -47,7 +47,7 @@ export const PrimaryInput: React.FC<PrimaryInputProps> = ({ onSubmitSubreddit, o
         <button
             type="submit"
             disabled={isLoading || !inputValue.trim()}
-            className="flex-1 sm:flex-initial bg-orange-600 text-white font-bold py-4 px-6 rounded-md shadow-lg hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-orange-500 transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
+            className="flex-1 sm:flex-initial bg-orange-600 text-white font-bold py-3 px-6 rounded-md shadow-lg hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-orange-500 transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
             {isLoading ? 'Fetching...' : 'Get Posts'}
         </button>
@@ -55,7 +55,7 @@ export const PrimaryInput: React.FC<PrimaryInputProps> = ({ onSubmitSubreddit, o
             type="button"
             onClick={handleSubredditSearch}
             disabled={isLoading || !inputValue.trim()}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-4 px-6 rounded-md shadow-lg hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-green-500 transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-3 px-6 rounded-md shadow-lg hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-green-500 transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
             <CompassIcon className="w-5 h-5" />
             <span className="hidden sm:inline">Search Subs</span>
@@ -64,7 +64,7 @@ export const PrimaryInput: React.FC<PrimaryInputProps> = ({ onSubmitSubreddit, o
             type="button"
             onClick={handleGlobalSubmit}
             disabled={isLoading || !inputValue.trim()}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-4 px-6 rounded-md shadow-lg hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-6 rounded-md shadow-lg hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
             <SearchIcon className="w-5 h-5" />
             <span className="hidden sm:inline">Search All</span>

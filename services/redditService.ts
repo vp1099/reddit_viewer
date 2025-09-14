@@ -1,6 +1,7 @@
 import type { RedditPost, RedditComment, RedditSort, RedditCommentSort, RedditUserAboutData, Subreddit } from '../types';
+import { getAccessToken } from './authService';
 
-const API_BASE_URL = 'https://www.reddit.com';
+const FAILED_TO_FETCH_MESSAGE = 'Network request failed. This is often caused by ad-blockers, browser privacy settings, or a network firewall. Please check your extensions and network connection, then try again.';
 
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -9,7 +10,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
       throw new Error(`Resource not found. Please check the name and try again.`);
     }
     if (response.status === 403) {
-      throw new Error(`Access is forbidden. It may be a private resource.`);
+      throw new Error(`Access Forbidden (403). The subreddit may be private, quarantined, or access may be restricted due to API rules. Please try again later.`);
     }
     if (response.status === 429) {
       throw new Error('Too many requests. Please wait a moment and try again.');
@@ -21,15 +22,42 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function redditFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
+  const token = getAccessToken();
+  const baseUrl = token ? 'https://oauth.reddit.com' : 'https://www.reddit.com';
+  const url = `${baseUrl}${endpoint}`;
+  
+  const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-export async function fetchSubredditPosts(subreddit: string, sort: RedditSort, count: number, after: string | null = null): Promise<{ posts: RedditPost[], after: string | null }> {
-  let url = `${API_BASE_URL}/r/${subreddit.trim()}/${sort}.json?limit=${count}`;
+  const fetchOptions: RequestInit = {
+    ...options,
+    headers: {
+        ...options.headers,
+        'User-Agent': 'web:com.example.reddit-json-viewer:v1.0.0',
+        ...authHeaders,
+    },
+    credentials: 'omit',
+  };
+
+  try {
+    const response = await fetch(url, fetchOptions);
+    return response;
+  } catch (error) {
+    // This catches network-level errors (e.g., CORS, DNS, ad-blockers)
+    console.error('Fetch API network error:', error);
+    throw new Error(FAILED_TO_FETCH_MESSAGE);
+  }
+}
+
+
+export async function fetchSubredditPosts(subreddit: string, sort: RedditSort, count: number, after: string | null): Promise<{ posts: RedditPost[], after: string | null }> {
+  let endpoint = `/r/${subreddit.trim()}/${sort}.json?limit=${count}`;
   if (after) {
-      url += `&after=${after}`;
+      endpoint += `&after=${after}`;
   }
 
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     const data = await handleResponse<any>(response);
     
     if (!data?.data?.children) {
@@ -42,27 +70,22 @@ export async function fetchSubredditPosts(subreddit: string, sort: RedditSort, c
 
   } catch (error) {
     console.error('Error fetching subreddit posts:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed. This may be due to an ad-blocker, firewall, or network issue.');
-    }
     throw error;
   }
 }
 
-export async function searchSubredditPosts(subreddit: string, query: string, sort: RedditSort, count: number, after: string | null = null): Promise<{ posts: RedditPost[], after: string | null }> {
-  // 'rising' is not a valid sort option for search, fallback to 'relevance' (default)
+export async function searchSubredditPosts(subreddit: string, query: string, sort: RedditSort, count: number, after: string | null): Promise<{ posts: RedditPost[], after: string | null }> {
   const validSort = sort === 'rising' ? 'relevance' : sort;
-  let url = `${API_BASE_URL}/r/${subreddit.trim()}/search.json?q=${encodeURIComponent(query)}&sort=${validSort}&restrict_sr=1&limit=${count}`;
+  let endpoint = `/r/${subreddit.trim()}/search.json?q=${encodeURIComponent(query)}&sort=${validSort}&restrict_sr=1&limit=${count}`;
    if (after) {
-      url += `&after=${after}`;
+      endpoint += `&after=${after}`;
   }
 
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     const data = await handleResponse<any>(response);
     
     if (!data?.data?.children) {
-      // It's possible to get a valid response with no results, which is not an error.
       return { posts: [], after: null };
     }
     return {
@@ -72,22 +95,19 @@ export async function searchSubredditPosts(subreddit: string, query: string, sor
 
   } catch (error) {
     console.error('Error searching subreddit posts:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed during search. This may be due to an ad-blocker, firewall, or network issue.');
-    }
     throw error;
   }
 }
 
-export async function searchAllReddit(query: string, sort: RedditSort, count: number, after: string | null = null): Promise<{ posts: RedditPost[], after: string | null }> {
+export async function searchAllReddit(query: string, sort: RedditSort, count: number, after: string | null): Promise<{ posts: RedditPost[], after: string | null }> {
   const validSort = sort === 'rising' ? 'relevance' : sort;
-  let url = `${API_BASE_URL}/search.json?q=${encodeURIComponent(query)}&sort=${validSort}&limit=${count}`;
+  let endpoint = `/search.json?q=${encodeURIComponent(query)}&sort=${validSort}&limit=${count}`;
   if (after) {
-    url += `&after=${after}`;
+    endpoint += `&after=${after}`;
   }
   
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     const data = await handleResponse<any>(response);
     
     if (!data?.data?.children) {
@@ -99,19 +119,16 @@ export async function searchAllReddit(query: string, sort: RedditSort, count: nu
     };
   } catch (error) {
     console.error('Error searching all of Reddit:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed during global search.');
-    }
     throw error;
   }
 }
 
 
 export async function fetchPostComments(permalink: string, sort: RedditCommentSort = 'top'): Promise<RedditComment[]> {
-  const url = `${API_BASE_URL}${permalink.replace(/\/$/, "")}.json?sort=${sort}`;
+  const endpoint = `${permalink.replace(/\/$/, "")}.json?sort=${sort}`;
 
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     const data = await handleResponse<any[]>(response);
     
     if (!data || data.length < 2 || !data[1]?.data?.children) {
@@ -124,33 +141,26 @@ export async function fetchPostComments(permalink: string, sort: RedditCommentSo
 
   } catch (error) {
     console.error('Error fetching post comments:', error);
-     if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed while fetching comments.');
-    }
     throw error;
   }
 }
 
 export async function fetchPostJson(permalink: string): Promise<any> {
-  const url = `${API_BASE_URL}${permalink.replace(/\/$/, "")}.json`;
+  const endpoint = `${permalink.replace(/\/$/, "")}.json`;
 
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     return handleResponse<any>(response);
-    // FIX: Add curly braces to the catch block to correctly scope the error handling.
   } catch (error) {
     console.error('Error fetching post JSON:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed while fetching post JSON.');
-    }
     throw error;
   }
 }
 
 export async function fetchPopularSubreddits(): Promise<string[]> {
-  const url = `${API_BASE_URL}/r/popular.json?limit=50`;
+  const endpoint = `/r/popular.json?limit=50`;
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     const data = await handleResponse<{ data: { children: RedditPost[] } }>(response);
     
     if (!data?.data?.children) {
@@ -158,37 +168,26 @@ export async function fetchPopularSubreddits(): Promise<string[]> {
     }
 
     const subredditNames = data.data.children.map(post => post.data.subreddit);
-    // Use a Set to get unique subreddit names, then convert back to an array
     const uniqueSubreddits = [...new Set(subredditNames)];
     
     return uniqueSubreddits.slice(0, 12);
 
   } catch (error) {
      console.error('Error fetching popular subreddits:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed while fetching popular subreddits.');
-    }
     throw error;
   }
 }
 
 const userCache = new Map<string, RedditUserAboutData | null>();
-// A promise chain to serialize user requests and avoid rate-limiting.
 let userRequestQueue: Promise<any> = Promise.resolve();
-const USER_REQUEST_DELAY_MS = 300; // Delay between each user profile fetch.
+const USER_REQUEST_DELAY_MS = 300; 
 
-/**
- * The internal fetch implementation for a single user.
- * It's called sequentially by the queue in `fetchUserAbout`.
- */
 async function fetchUserAboutInternal(username: string): Promise<RedditUserAboutData | null> {
-  const url = `${API_BASE_URL}/user/${username}/about.json`;
+  const endpoint = `/user/${username}/about.json`;
 
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     
-    // If the user doesn't exist, is suspended, etc., response won't be OK.
-    // We cache this 'null' result to avoid re-fetching.
     if (!response.ok) {
       userCache.set(username, null);
       return null;
@@ -201,47 +200,34 @@ async function fetchUserAboutInternal(username: string): Promise<RedditUserAbout
       return null;
     }
 
-    // Cache the successful result.
     userCache.set(username, data.data);
     return data.data;
 
   } catch (error) {
-    // This can happen due to network issues, CORS errors, or ad-blockers.
-    // We intentionally do not log this error to the console to avoid spam,
-    // as fetching user avatars is a non-critical feature. The UI will
-    // gracefully degrade by showing a placeholder.
     return null;
   }
 }
 
-/**
- * Fetches a user's "about" data, including their profile image.
- * This function uses a queue to process requests sequentially with a delay,
- * preventing a flood of simultaneous requests that could trigger API rate limits.
- */
-export async function fetchUserAbout(username: string): Promise<RedditUserAboutData | null> {
+export function fetchUserAbout(username: string): Promise<RedditUserAboutData | null> {
   if (!username || username === '[deleted]') {
-    return null;
+    return Promise.resolve(null);
   }
   
-  // Return from cache immediately if available.
   if (userCache.has(username)) {
-    return userCache.get(username)!;
+    return Promise.resolve(userCache.get(username)!);
   }
 
-  // Chain the new request onto the queue. It will execute after the previous one completes.
   const resultPromise = userRequestQueue.then(() => fetchUserAboutInternal(username));
   
-  // The *next* request will have to wait for this one to finish, plus an additional delay.
   userRequestQueue = resultPromise.then(() => new Promise(resolve => setTimeout(resolve, USER_REQUEST_DELAY_MS)));
 
   return resultPromise;
 }
 
 export async function searchSubreddits(query: string): Promise<Subreddit[]> {
-  const url = `${API_BASE_URL}/search.json?q=${encodeURIComponent(query)}&type=sr`;
+  const endpoint = `/search.json?q=${encodeURIComponent(query)}&type=sr`;
   try {
-    const response = await fetch(url, { credentials: 'omit' });
+    const response = await redditFetch(endpoint);
     const data = await handleResponse<{ data: { children: Subreddit[] } }>(response);
 
     if (!data?.data?.children) {
@@ -250,56 +236,6 @@ export async function searchSubreddits(query: string): Promise<Subreddit[]> {
     return data.data.children;
   } catch (error) {
     console.error('Error searching subreddits:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed while searching for subreddits.');
-    }
-    throw error;
-  }
-}
-
-// FIX: Add missing postComment function which is imported in AddCommentForm.tsx.
-interface PostCommentArgs {
-  accessToken: string;
-  parentId: string;
-  text: string;
-}
-
-export async function postComment({ accessToken, parentId, text }: PostCommentArgs): Promise<any> {
-  const OAUTH_API_BASE_URL = 'https://oauth.reddit.com';
-  const url = `${OAUTH_API_BASE_URL}/api/comment`;
-
-  const formData = new URLSearchParams();
-  formData.append('api_type', 'json');
-  formData.append('text', text);
-  formData.append('thing_id', parentId);
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-        let errorBody;
-        try {
-          errorBody = await response.json();
-        } catch (e) {
-          errorBody = await response.text();
-        }
-        console.error("API Error Response on postComment:", errorBody);
-        throw new Error(`Failed to post comment. Status: ${response.status}`);
-    }
-    
-    return response.json();
-
-  } catch (error) {
-    console.error('Error posting comment:', error);
-    if (error instanceof Error && error.message.includes('Failed to fetch')) {
-      throw new Error('Network request failed while posting comment.');
-    }
     throw error;
   }
 }

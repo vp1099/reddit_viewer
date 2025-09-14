@@ -69,6 +69,15 @@ export interface RedditUserAboutData {
   icon_img?: string;
 }
 
+export interface RedditUserMeData {
+  name: string;
+  snoovatar_img?: string;
+  icon_img?: string;
+  total_karma: number;
+  created_utc: number;
+}
+
+
 export interface SubredditData {
   id: string;
   display_name: string;

@@ -5,7 +5,9 @@ import {
   searchAllReddit,
   searchSubreddits,
 } from './services/redditService';
-import type { RedditPost, RedditSort, Subreddit } from './types';
+import * as authService from './services/authService';
+
+import type { RedditPost, RedditSort, Subreddit, RedditUserMeData } from './types';
 
 import { PostCard } from './components/PostCard';
 import { LoadingSpinner } from './components/LoadingSpinner';
@@ -17,16 +19,10 @@ import { PrimaryInput } from './components/PrimaryInput';
 import { SearchInput } from './components/SearchInput';
 import { SubredditSearchResults } from './components/SubredditSearchResults';
 import { Trending } from './components/Trending';
+import { UserProfile } from './components/UserProfile';
 
-import { FireIcon, SparklesIcon, TrophyIcon, TrendingUpIcon, TagIcon, HomeIcon } from './components/IconComponents';
+import { FireIcon, SparklesIcon, TrophyIcon, TrendingUpIcon, TagIcon, HomeIcon, LoginIcon, CloseIcon } from './components/IconComponents';
 
-/**
- * A custom hook that debounces a value. This prevents API calls from being made on every input change,
- * waiting until the user has stopped interacting for a specified delay.
- * @param value The value to debounce.
- * @param delay The debounce delay in milliseconds.
- * @returns The debounced value.
- */
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
@@ -35,7 +31,6 @@ function useDebounce<T>(value: T, delay: number): T {
       setDebouncedValue(value);
     }, delay);
 
-    // Cancel the timeout if the value changes before the delay has passed
     return () => {
       clearTimeout(handler);
     };
@@ -77,8 +72,32 @@ const App: React.FC = () => {
   const [subredditSearchError, setSubredditSearchError] = useState<string | null>(null);
   const [subredditSearchQuery, setSubredditSearchQuery] = useState<string>('');
   
+  const [user, setUser] = useState<RedditUserMeData | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
   const debouncedSort = useDebounce(sort, 500);
   const debouncedCount = useDebounce(count, 500);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      setIsAuthLoading(true);
+      try {
+        authService.handleOAuthRedirect(); // Handles redirect from Reddit auth
+        const token = authService.getAccessToken();
+        if (token) {
+          const userData = await authService.fetchMe();
+          setUser(userData);
+        }
+      } catch (err) {
+        console.error("Auth initialization failed:", err);
+        authService.logout(false); // Clear invalid token
+        setUser(null);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+    initAuth();
+  }, []);
 
   const resetPostsState = () => {
     setPosts([]);
@@ -87,7 +106,6 @@ const App: React.FC = () => {
     setExpandedPostId(null);
   };
   
-  // Effect to trigger a fresh fetch when primary criteria change
   useEffect(() => {
     const fetchData = async () => {
       if (isInitialLoad || (!subreddit && !(isGlobalSearch && searchQuery))) {
@@ -117,7 +135,6 @@ const App: React.FC = () => {
       }
     };
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subreddit, debouncedSort, debouncedCount, searchQuery, isGlobalSearch, isInitialLoad]);
 
   const handleLoadMore = async () => {
@@ -203,6 +220,17 @@ const App: React.FC = () => {
     setExpandedPostId(current => (current === postId ? null : postId));
   };
   
+  const handleCloseExpandedPost = () => {
+    if (expandedPostId) {
+      const postElement = document.getElementById(`post-${expandedPostId}`);
+      // Scroll the card into view. This is helpful if the user has scrolled deep into comments.
+      if (postElement) {
+        postElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      setExpandedPostId(null);
+    }
+  };
+
   const handleGoHome = () => {
     setIsInitialLoad(true);
     setSubreddit('');
@@ -214,6 +242,24 @@ const App: React.FC = () => {
     resetPostsState();
   };
 
+  const renderAuthSection = () => {
+    if (isAuthLoading) {
+      return <div className="w-24 h-10 bg-gray-700 rounded-lg animate-pulse"></div>;
+    }
+    if (user) {
+      return <UserProfile user={user} onLogout={() => authService.logout()} />;
+    }
+    return (
+      <button
+        onClick={() => authService.login()}
+        className="flex items-center gap-2 bg-blue-600 text-white font-bold py-2 px-4 rounded-md shadow-lg hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all duration-300"
+      >
+        <LoginIcon className="w-5 h-5" />
+        Login
+      </button>
+    );
+  };
+
   const currentSortOptions = searchQuery ? searchSortOptions : sortOptions;
   const showPosts = posts.length > 0;
   const showWelcome = isInitialLoad && !isLoading && !error;
@@ -222,25 +268,40 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
       <header className="bg-gray-800/50 backdrop-blur-sm sticky top-0 z-10 p-4 shadow-lg">
-        <div className="relative max-w-2xl mx-auto mb-4">
-          <h1 className="text-3xl font-bold text-center text-orange-400">
-            Reddit JSON Viewer
-          </h1>
-          <button 
-            onClick={handleGoHome} 
-            className="absolute left-0 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-white transition-colors duration-200 rounded-full hover:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            aria-label="Go to homepage"
-            title="Go to homepage"
-          >
-            <HomeIcon className="w-7 h-7"/>
-          </button>
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleGoHome} 
+              className="p-2 text-gray-400 hover:text-white transition-colors duration-200 rounded-full hover:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              aria-label="Go to homepage"
+              title="Go to homepage"
+            >
+              <HomeIcon className="w-7 h-7"/>
+            </button>
+            <h1 className="text-xl sm:text-3xl font-bold text-orange-400">
+              Reddit Viewer
+            </h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="hidden lg:block flex-grow max-w-2xl">
+              <PrimaryInput 
+                onSubmitSubreddit={handleSubredditSubmit}
+                onSubmitGlobal={handleGlobalSearch}
+                onSubmitSubredditSearch={handleSubredditSearch}
+                isLoading={isLoading || isSubredditSearchLoading}
+              />
+            </div>
+            {renderAuthSection()}
+          </div>
         </div>
-        <PrimaryInput 
-          onSubmitSubreddit={handleSubredditSubmit}
-          onSubmitGlobal={handleGlobalSearch}
-          onSubmitSubredditSearch={handleSubredditSearch}
-          isLoading={isLoading || isSubredditSearchLoading}
-        />
+        <div className="lg:hidden max-w-2xl mx-auto pt-4">
+          <PrimaryInput 
+            onSubmitSubreddit={handleSubredditSubmit}
+            onSubmitGlobal={handleGlobalSearch}
+            onSubmitSubredditSearch={handleSubredditSearch}
+            isLoading={isLoading || isSubredditSearchLoading}
+          />
+        </div>
       </header>
       <main className="container mx-auto p-4 space-y-6">
         {showWelcome && (
@@ -321,6 +382,16 @@ const App: React.FC = () => {
       <footer className="text-center p-4 text-gray-500 text-sm">
         <p>Built for exploring Reddit's JSON API. Not affiliated with Reddit.</p>
       </footer>
+       {expandedPostId && (
+        <button
+          onClick={handleCloseExpandedPost}
+          aria-label="Close post"
+          title="Close and scroll to top of post"
+          className="fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 bg-gray-900/70 backdrop-blur-sm text-gray-300 rounded-full shadow-lg border-2 border-gray-700 hover:bg-orange-600 hover:text-white hover:border-orange-500 focus:outline-none focus:ring-2 focus:ring-offset-4 focus:ring-offset-gray-900 focus:ring-orange-500 transition-all duration-300 ease-in-out transform hover:scale-110"
+        >
+          <CloseIcon className="w-8 h-8" />
+        </button>
+      )}
     </div>
   );
 };

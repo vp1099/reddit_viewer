@@ -32,7 +32,6 @@ export const CommentCard: React.FC<CommentProps> = ({ comment }) => {
   }, [author]);
 
 
-  // Filter out any non-comment items from replies, like "more" links
   const validReplies = replies && replies.data && replies.data.children 
     ? replies.data.children.filter(reply => reply.kind === 't1') 
     : [];

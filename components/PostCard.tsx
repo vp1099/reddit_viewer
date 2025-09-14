@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { RedditPost, RedditComment, RedditCommentSort } from '../types';
-import { UpvoteIcon, CommentIcon, LinkIcon, PlaceholderIcon, ClockIcon, DownloadIcon, TrophyIcon, SparklesIcon, UserIcon } from './IconComponents';
+import { UpvoteIcon, CommentIcon, LinkIcon, PlaceholderIcon, ClockIcon, DownloadIcon, TrophyIcon, SparklesIcon, UserIcon, CloseIcon } from './IconComponents';
 import { fetchPostComments, fetchPostJson, fetchUserAbout } from '../services/redditService';
 import { CommentCard } from './Comment';
 import { formatTimestamp } from '../utils/time';
@@ -44,7 +44,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
       const userData = await fetchUserAbout(author);
       if (userData) {
         const imgUrl = userData.snoovatar_img || userData.icon_img;
-        // Clean URL from query params
         setAuthorProfileImg(imgUrl ? imgUrl.split('?')[0] : null);
       }
       setIsAuthorImgLoading(false);
@@ -53,19 +52,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
   }, [author]);
 
   const getThumbnailUrl = () => {
-    // Prioritize the high-resolution preview image if available. It's often better quality.
     if (preview?.images?.[0]?.source?.url) {
-      // The URL from the API is often HTML-encoded, so we need to decode it.
       return preview.images[0].source.url.replace(/&amp;/g, '&');
     }
-    
-    // Fallback to the regular thumbnail if it's a valid URL.
     const isValidThumbnail = thumbnail && !['self', 'default', 'nsfw', ''].includes(thumbnail);
     if (isValidThumbnail) {
       return thumbnail;
     }
-
-    // If no valid image is found, return null to render a placeholder.
     return null;
   };
 
@@ -90,9 +83,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
   };
   
   const handleToggleExpand = () => {
-    // If we are about to expand the card, and we haven't fetched comments yet.
     if (!isExpanded && !comments && num_comments > 0) {
-      fetchComments(commentSort); // Fetch with the default sort
+      fetchComments(commentSort);
     }
     onToggleExpand(post.data.id);
   };
@@ -163,7 +155,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
 
 
   return (
-    <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col justify-between transition-all duration-300 hover:transform hover:-translate-y-1 hover:shadow-orange-500/20">
+    <div id={`post-${post.data.id}`} className="bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col justify-between transition-all duration-300 hover:transform hover:-translate-y-1 hover:shadow-orange-500/20">
       <div className="p-5">
         <div className="flex items-start gap-4">
           {thumbnailUrl ? (
@@ -212,7 +204,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
-                        onClick={(e) => e.stopPropagation()} // Prevents the card from toggling when link is clicked
+                        onClick={(e) => e.stopPropagation()}
                     >
                         r/{subreddit}
                     </a>
@@ -241,43 +233,45 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
                 </div>
             )}
            
-            {num_comments > 0 && (
-                <div id={`comments-${post.data.id}`} className="pt-4 border-t border-gray-700">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
-                        <h4 className="text-base font-semibold text-gray-200">Comments</h4>
-                        <div className="flex items-center bg-gray-900/50 rounded-lg p-1 gap-1">
-                            {commentSortOptions.map(({ id, label, icon: Icon }) => (
-                                <button
-                                    key={id}
-                                    onClick={() => handleCommentSortChange(id)}
-                                    disabled={isLoadingComments}
-                                    className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-orange-500 disabled:opacity-50 ${
-                                        commentSort === id ? 'bg-orange-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
-                                    }`}
-                                >
-                                    <Icon className="w-4 h-4" />
-                                    {label}
-                                </button>
+            <div id={`comments-${post.data.id}`} className="pt-4 border-t border-gray-700">
+                {num_comments > 0 && (
+                    <>
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
+                            <h4 className="text-base font-semibold text-gray-200">Comments</h4>
+                            <div className="flex items-center bg-gray-900/50 rounded-lg p-1 gap-1">
+                                {commentSortOptions.map(({ id, label, icon: Icon }) => (
+                                    <button
+                                        key={id}
+                                        onClick={() => handleCommentSortChange(id)}
+                                        disabled={isLoadingComments}
+                                        className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-orange-500 disabled:opacity-50 ${
+                                            commentSort === id ? 'bg-orange-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
+                                        }`}
+                                    >
+                                        <Icon className="w-4 h-4" />
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {isLoadingComments && <p className="text-sm text-gray-400 text-center animate-pulse py-4">Loading comments...</p>}
+                        {commentsError && <p className="text-sm text-red-400 text-center py-4">{commentsError}</p>}
+                        
+                        {comments && comments.length > 0 && (
+                        <div className="flex flex-col gap-2">
+                            {comments.map((comment) => (
+                            <CommentCard key={comment.data.id} comment={comment} />
                             ))}
                         </div>
-                    </div>
-
-                    {isLoadingComments && <p className="text-sm text-gray-400 text-center animate-pulse py-4">Loading comments...</p>}
-                    {commentsError && <p className="text-sm text-red-400 text-center py-4">{commentsError}</p>}
-                    
-                    {comments && comments.length > 0 && (
-                      <div className="flex flex-col gap-2">
-                          {comments.map((comment) => (
-                          <CommentCard key={comment.data.id} comment={comment} />
-                          ))}
-                      </div>
-                    )}
-                    
-                    {comments && comments.length === 0 && !isLoadingComments && (
-                      <p className="text-sm text-gray-400 text-center py-4">No comments found.</p>
-                    )}
-                </div>
-            )}
+                        )}
+                        
+                        {comments && comments.length === 0 && !isLoadingComments && (
+                        <p className="text-sm text-gray-400 text-center py-4">No comments found.</p>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
       )}
       

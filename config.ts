@@ -1,14 +1,18 @@
-// IMPORTANT: Reddit authentication will not work until you provide your own Client ID.
-// 1. Go to: https://www.reddit.com/prefs/apps
-// 2. Click "are you a developer? create an app..."
-// 3. Fill out the form:
-//    - name: Can be anything (e.g., Reddit JSON Viewer)
-//    - choose "installed app"
-//    - about url: Can be blank
-//    - redirect uri: The exact URL where this app is running (e.g., http://localhost:3000)
-// 4. Click "create app".
-// 5. Your Client ID will be listed right under the application name you chose.
-// 6. Copy it and paste it here, replacing the placeholder.
+// IMPORTANT: You must register a new "installed app" or "script" on Reddit to get a Client ID.
+// Go to: https://www.reddit.com/prefs/apps
+// 1. Click "are you a developer? create an app..."
+// 2. Name your app (e.g., "My Reddit Viewer")
+// 3. Select "installed app" or "script".
+// 4. Set the "redirect uri" to the URL where you are running this app (e.g., http://localhost:3000/ or your deployed app's URL).
+// 5. Click "create app". Your client ID will be displayed under the app name.
 
-// FIX: Explicitly typed as string to avoid literal type comparison error in App.tsx.
-export const REDDIT_CLIENT_ID: string = 'YOUR_REDDIT_CLIENT_ID';
+export const CLIENT_ID = 'YOUR_REDDIT_CLIENT_ID'; // <-- REPLACE THIS
+
+// This should match the "redirect uri" you set in your Reddit app settings.
+export const REDIRECT_URI = window.location.origin + window.location.pathname;
+
+// Scopes define what your app can do on behalf of the user.
+export const OAUTH_SCOPE = 'identity read mysubreddits history';
+
+// A unique string to identify the state of the OAuth flow.
+export const OAUTH_STATE = 'reddit-json-viewer-auth-state';
