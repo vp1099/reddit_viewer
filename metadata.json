@@ -1,0 +1,5 @@
+{
+  "name": "Reddit JSON Viewer",
+  "description": "An application to fetch and display JSON data from Reddit posts on a specified subreddit using its public API.",
+  "requestFramePermissions": []
+}
