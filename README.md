@@ -1,16 +1,22 @@
 # Reddit JSON Viewer
 
-A modern, responsive web application for browsing subreddits using Reddit's public JSON API. This tool allows users to fetch and display posts, view top comments, search within subreddits, and download the raw JSON data for any post.
+A modern, responsive web application for discovering and browsing subreddits using Reddit's public JSON API. This tool allows users to search all of Reddit, find new communities, view posts with embedded media, see sorted comments, and download the raw JSON data for any post.
 
 ## Features
 
-- **Browse Any Subreddit**: Enter any public subreddit name to view its posts.
-- **Sort Posts**: Sort posts by "Hot", "New", "Top", and "Rising".
-- **Search Functionality**: Perform searches within the current subreddit.
-- **View Top Comments**: Expand any post to see its top-rated comments.
+- **Browse Subreddits**: Enter any public subreddit name to view its posts.
+- **Global Reddit Search**: Search for posts across all of Reddit, not just one subreddit.
+- **Subreddit Discovery**: Search for new subreddits by keyword and see their descriptions and subscriber counts.
+- **Trending & Discovery Hub**: A homepage dashboard featuring trending subreddits and popular topics to kickstart exploration.
+- **Advanced Sorting & Filtering**: Sort posts by "Hot", "New", "Top", "Rising", or "Relevance". Customize the number of posts loaded per page.
+- **In-Subreddit Search**: Perform targeted searches within the current subreddit.
+- **Interactive Posts**: Expand posts to view self-text, embedded images, and videos directly.
+- **Sortable Comments**: View the top comments for any post and sort them by "Top", "New", or "Old".
+- **User Avatars**: See profile pictures for post authors and commenters.
 - **Download Post JSON**: Download the complete, raw JSON data for any individual post with a single click.
 - **Responsive Design**: A clean, mobile-friendly interface built with Tailwind CSS.
-- **Error Handling**: Provides clear feedback for common issues like private subreddits or network errors.
+- **Robust Error Handling**: Provides clear feedback for common issues like private subreddits or network errors.
+
 
 ## Getting Started
 
@@ -51,10 +57,16 @@ Now, open your web browser and navigate to the local server URL (e.g., [http://l
 
 ## How to Use
 
-1.  **Enter a Subreddit**: Type the name of a subreddit (e.g., `reactjs`, `pics`) into the main input field and click "Get Posts".
-2.  **Sort and Search**: Use the sorting buttons to reorder the posts. Use the search bar that appears to find specific posts within that subreddit.
-3.  **View Comments**: Click "View Comments" on any post card to load the top comments.
-4.  **Download JSON**: Click the "JSON" button with the download icon on any post to save its raw data as a `.json` file.
+1.  **Start Exploring**: Use the main input bar to start. You have three options:
+    -   **Get Posts**: Enter a subreddit name (e.g., `reactjs`) and click "Get Posts" to browse that community.
+    -   **Search Subs**: Enter a keyword (e.g., `hiking`) and click "Search Subs" to find related subreddits.
+    -   **Search All**: Enter a search query and click "Search All" to find posts across all of Reddit.
+2.  **Discover on the Homepage**: If you're not sure where to start, click a subreddit from the "Trending & Discovery" section on the welcome screen.
+3.  **Refine Your View**: Once viewing posts, use the controls to sort them, change the number of posts per page, or search within the current context.
+4.  **Interact with Posts**: Click on a post's title to expand it. This will reveal its content (text, images, videos) and load the comments section.
+5.  **Sort Comments**: Within an expanded post, you can sort the comments by "Top", "New", or "Old".
+6.  **Download JSON**: Click the "JSON" button with the download icon on any post to save its raw data as a `.json` file.
+
 
 ## Technologies Used
 

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import type { RedditPost, RedditComment } from '../types';
-import { UpvoteIcon, CommentIcon, LinkIcon, PlaceholderIcon, ClockIcon, DownloadIcon } from './IconComponents';
-import { fetchPostComments, fetchPostJson } from '../services/redditService';
+import React, { useState, useEffect } from 'react';
+import type { RedditPost, RedditComment, RedditCommentSort } from '../types';
+import { UpvoteIcon, CommentIcon, LinkIcon, PlaceholderIcon, ClockIcon, DownloadIcon, TrophyIcon, SparklesIcon, UserIcon } from './IconComponents';
+import { fetchPostComments, fetchPostJson, fetchUserAbout } from '../services/redditService';
 import { CommentCard } from './Comment';
 import { formatTimestamp } from '../utils/time';
 
@@ -11,38 +11,97 @@ interface PostCardProps {
   onToggleExpand: (postId: string) => void;
 }
 
+interface CommentSortOption {
+    id: RedditCommentSort;
+    label: string;
+    icon: React.FC<React.SVGProps<SVGSVGElement>>;
+}
+
+const commentSortOptions: CommentSortOption[] = [
+    { id: 'top', label: 'Top', icon: TrophyIcon },
+    { id: 'new', label: 'New', icon: SparklesIcon },
+    { id: 'old', label: 'Old', icon: ClockIcon },
+];
+
 export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleExpand }) => {
-  const { title, author, score, num_comments, permalink, thumbnail, created_utc, selftext, url, is_video } = post.data;
+  const { title, author, score, num_comments, permalink, thumbnail, created_utc, selftext, url, is_video, media, subreddit, preview } = post.data;
 
   const [comments, setComments] = useState<RedditComment[] | null>(null);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [commentSort, setCommentSort] = useState<RedditCommentSort>('top');
+  const [authorProfileImg, setAuthorProfileImg] = useState<string | null>(null);
+  const [isAuthorImgLoading, setIsAuthorImgLoading] = useState(true);
 
-  const isValidThumbnail = thumbnail && thumbnail !== 'self' && thumbnail !== 'default' && thumbnail !== 'nsfw';
-
-  const handleToggleExpand = async () => {
-    // If we are about to expand the card, and we haven't fetched comments yet.
-    if (!isExpanded && !comments && num_comments > 0) {
-      setIsLoadingComments(true);
-      setCommentsError(null);
-      try {
-        const fetchedComments = await fetchPostComments(permalink);
-        setComments(fetchedComments);
-      } catch (err) {
-        if (err instanceof Error) {
-          setCommentsError(err.message);
-        } else {
-          setCommentsError('An unknown error occurred while fetching comments.');
-        }
-      } finally {
-        setIsLoadingComments(false);
+  useEffect(() => {
+    const loadProfileImg = async () => {
+      if (!author || author === '[deleted]') {
+        setIsAuthorImgLoading(false);
+        return;
       }
+      setIsAuthorImgLoading(true);
+      const userData = await fetchUserAbout(author);
+      if (userData) {
+        const imgUrl = userData.snoovatar_img || userData.icon_img;
+        // Clean URL from query params
+        setAuthorProfileImg(imgUrl ? imgUrl.split('?')[0] : null);
+      }
+      setIsAuthorImgLoading(false);
+    };
+    loadProfileImg();
+  }, [author]);
+
+  const getThumbnailUrl = () => {
+    // Prioritize the high-resolution preview image if available. It's often better quality.
+    if (preview?.images?.[0]?.source?.url) {
+      // The URL from the API is often HTML-encoded, so we need to decode it.
+      return preview.images[0].source.url.replace(/&amp;/g, '&');
+    }
+    
+    // Fallback to the regular thumbnail if it's a valid URL.
+    const isValidThumbnail = thumbnail && !['self', 'default', 'nsfw', ''].includes(thumbnail);
+    if (isValidThumbnail) {
+      return thumbnail;
     }
 
-    // Let the parent component handle the actual state change.
+    // If no valid image is found, return null to render a placeholder.
+    return null;
+  };
+
+  const thumbnailUrl = getThumbnailUrl();
+
+  const fetchComments = async (sortType: RedditCommentSort) => {
+    if (isLoadingComments) return;
+    setIsLoadingComments(true);
+    setCommentsError(null);
+    try {
+      const fetchedComments = await fetchPostComments(permalink, sortType);
+      setComments(fetchedComments);
+    } catch (err) {
+      if (err instanceof Error) {
+        setCommentsError(err.message);
+      } else {
+        setCommentsError('An unknown error occurred while fetching comments.');
+      }
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+  
+  const handleToggleExpand = () => {
+    // If we are about to expand the card, and we haven't fetched comments yet.
+    if (!isExpanded && !comments && num_comments > 0) {
+      fetchComments(commentSort); // Fetch with the default sort
+    }
     onToggleExpand(post.data.id);
   };
+  
+  const handleCommentSortChange = (newSort: RedditCommentSort) => {
+      if (isLoadingComments || newSort === commentSort) return;
+      setCommentSort(newSort);
+      fetchComments(newSort);
+  }
 
   const handleDownloadJson = async () => {
     setIsDownloading(true);
@@ -70,6 +129,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
 
   const renderMedia = () => {
     const isImageUrl = url && /\.(jpg|jpeg|png|gif)$/i.test(url);
+    const videoUrl = media?.reddit_video?.fallback_url;
 
     if (isImageUrl) {
       return (
@@ -79,31 +139,35 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
       );
     }
     
-    if (is_video) {
+    if (is_video && videoUrl) {
       return (
-         <div className="mt-4 p-4 bg-gray-700 rounded-lg text-center">
-            <p className="font-semibold text-gray-300">This post contains a video.</p>
-            <a 
-                href={`https://reddit.com${permalink}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-orange-400 hover:underline"
+         <div className="mt-4 flex justify-center bg-black/20 rounded-lg">
+            <video
+                src={videoUrl}
+                controls
+                muted
+                playsInline
+                loop
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
             >
-                Watch video on Reddit
-            </a>
+                Sorry, your browser doesn't support embedded videos.
+            </video>
          </div>
       );
     }
     
     return null;
   };
+  
+  const hasMediaContent = selftext || (is_video && media?.reddit_video?.fallback_url) || (url && /\.(jpg|jpeg|png|gif)$/i.test(url));
+
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col justify-between transition-all duration-300 hover:transform hover:-translate-y-1 hover:shadow-orange-500/20">
       <div className="p-5">
         <div className="flex items-start gap-4">
-          {isValidThumbnail ? (
-            <img src={thumbnail} alt="thumbnail" className="w-16 h-16 object-cover rounded-md flex-shrink-0" />
+          {thumbnailUrl ? (
+            <img src={thumbnailUrl} alt="thumbnail" className="w-16 h-16 object-cover rounded-md flex-shrink-0" />
           ) : (
             <div className="w-16 h-16 bg-gray-700 rounded-md flex items-center justify-center flex-shrink-0">
                <PlaceholderIcon className="w-8 h-8 text-gray-500"/>
@@ -118,7 +182,41 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
               {title}
             </button>
             <div className="text-xs text-gray-400 mt-2 space-y-1">
-                <p>by {author}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                    {author === '[deleted]' ? (
+                        <span className="text-gray-500 flex items-center gap-1.5">
+                            <UserIcon className="w-5 h-5"/>
+                            by [deleted]
+                        </span>
+                    ) : (
+                        <a
+                            href={`https://reddit.com/user/${author}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-cyan-300 transition-colors group"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {isAuthorImgLoading ? (
+                                <div className="w-5 h-5 bg-gray-600 rounded-full animate-pulse"></div>
+                            ) : authorProfileImg ? (
+                                <img src={authorProfileImg} alt={`${author}'s profile`} className="w-5 h-5 rounded-full object-cover bg-gray-700" />
+                            ) : (
+                                <UserIcon className="w-5 h-5 text-gray-500" />
+                            )}
+                            <span className="group-hover:underline">by {author}</span>
+                        </a>
+                    )}
+                    <span className="text-gray-600">•</span>
+                    <a 
+                        href={`https://reddit.com/r/${subreddit}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
+                        onClick={(e) => e.stopPropagation()} // Prevents the card from toggling when link is clicked
+                    >
+                        r/{subreddit}
+                    </a>
+                </div>
                 <div className="flex items-center gap-1.5">
                     <ClockIcon className="w-3.5 h-3.5" />
                     <time dateTime={new Date(created_utc * 1000).toISOString()}>
@@ -132,7 +230,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
       
       {isExpanded && (
         <div className="px-5 pb-4 space-y-4">
-            {(selftext || is_video || (url && /\.(jpg|jpeg|png|gif)$/i.test(url))) && (
+            {hasMediaContent && (
                 <div className="border-t border-gray-700 pt-4">
                     {selftext && (
                         <div className="max-w-none text-gray-300 whitespace-pre-wrap mb-4">
@@ -145,18 +243,38 @@ export const PostCard: React.FC<PostCardProps> = ({ post, isExpanded, onToggleEx
            
             {num_comments > 0 && (
                 <div id={`comments-${post.data.id}`} className="pt-4 border-t border-gray-700">
-                    <h4 className="text-base font-semibold text-gray-200 mb-3">Top Comments</h4>
-                    {isLoadingComments && <p className="text-sm text-gray-400 text-center animate-pulse">Loading top comments...</p>}
-                    {commentsError && <p className="text-sm text-red-400 text-center">{commentsError}</p>}
-                    {comments && comments.length > 0 && (
-                    <div className="flex flex-col gap-2">
-                        {comments.map((comment) => (
-                        <CommentCard key={comment.data.id} comment={comment} />
-                        ))}
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
+                        <h4 className="text-base font-semibold text-gray-200">Comments</h4>
+                        <div className="flex items-center bg-gray-900/50 rounded-lg p-1 gap-1">
+                            {commentSortOptions.map(({ id, label, icon: Icon }) => (
+                                <button
+                                    key={id}
+                                    onClick={() => handleCommentSortChange(id)}
+                                    disabled={isLoadingComments}
+                                    className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-orange-500 disabled:opacity-50 ${
+                                        commentSort === id ? 'bg-orange-600 text-white' : 'text-gray-300 hover:bg-gray-700/50'
+                                    }`}
+                                >
+                                    <Icon className="w-4 h-4" />
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
+
+                    {isLoadingComments && <p className="text-sm text-gray-400 text-center animate-pulse py-4">Loading comments...</p>}
+                    {commentsError && <p className="text-sm text-red-400 text-center py-4">{commentsError}</p>}
+                    
+                    {comments && comments.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                          {comments.map((comment) => (
+                          <CommentCard key={comment.data.id} comment={comment} />
+                          ))}
+                      </div>
                     )}
+                    
                     {comments && comments.length === 0 && !isLoadingComments && (
-                    <p className="text-sm text-gray-400 text-center">No comments found or failed to load.</p>
+                      <p className="text-sm text-gray-400 text-center py-4">No comments found.</p>
                     )}
                 </div>
             )}
